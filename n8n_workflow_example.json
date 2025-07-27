@@ -1,0 +1,139 @@
+{
+  "name": "LINE Bot ChatGPT Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "n8n",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "linebot-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Djangoから送信されたデータを処理\nconst data = $input.first().json;\n\n// ユーザーIDとメッセージを取得\nconst userId = data.user_id;\nconst message = data.message;\nconst timestamp = data.timestamp;\n\n// ログ出力\nconsole.log(`Received message from ${userId}: ${message}`);\n\n// 次のノードに渡すデータ\nreturn {\n  userId: userId,\n  message: message,\n  timestamp: timestamp,\n  originalData: data\n};"
+      },
+      "id": "process-data-node",
+      "name": "Process Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "node": "chatgpt-node",
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-3.5-turbo",
+        "messages": "={{ [{\n  role: 'user',\n  content: $('Process Data').first().json.message\n}] }}",
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "chatgpt-node",
+      "name": "ChatGPT",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "your-openai-api-key-id",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ChatGPTの応答を処理\nconst chatgptResponse = $('ChatGPT').first().json;\nconst processedData = $('Process Data').first().json;\n\n// レスポンスを構築\nconst response = {\n  user_id: processedData.userId,\n  original_message: processedData.message,\n  response: chatgptResponse.choices[0].message.content,\n  timestamp: processedData.timestamp,\n  model: 'gpt-3.5-turbo'\n};\n\nconsole.log(`Sending response to user ${processedData.userId}`);\n\nreturn response;"
+      },
+      "id": "format-response-node",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $('Format Response').first().json }}",
+        "options": {}
+      },
+      "id": "response-node",
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Data": {
+      "main": [
+        [
+          {
+            "node": "ChatGPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatGPT": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "id": "linebot-workflow",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "linebot",
+      "name": "linebot"
+    }
+  ]
+} 
